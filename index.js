@@ -10,7 +10,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
 const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
@@ -25,12 +25,14 @@ const oauth2Client = new google.auth.OAuth2(
   REDIRECT_URI
 );
 
+let googleTokens = null;
 
 app.get("/google/login", (req, res) => {
   const scopes = ["https://www.googleapis.com/auth/youtube"];
   const url = oauth2Client.generateAuthUrl({
     access_type: "offline",
     scope: scopes,
+    prompt: "consent", 
   });
   res.redirect(url);
 });
@@ -40,10 +42,9 @@ app.get("/google/callback", async (req, res) => {
     const code = req.query.code;
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
+    googleTokens = tokens;
 
-    global.googleTokens = tokens;
-
-    const frontendUrl = "https://trackshift.vercel.app/"; 
+    const frontendUrl = "https://trackshift.vercel.app";
     res.redirect(`${frontendUrl}/?signedIn=true`);
   } catch (err) {
     console.error("Google Auth error:", err.message);
@@ -51,10 +52,15 @@ app.get("/google/callback", async (req, res) => {
   }
 });
 
-
 app.post("/convert", async (req, res) => {
   try {
     const { spotifyUrl, youtubePlaylistName } = req.body;
+
+    if (!googleTokens) {
+      return res.status(401).json({ error: "User is not authenticated with Google." });
+    }
+    
+    oauth2Client.setCredentials(googleTokens);
 
     const playlistId = spotifyUrl.split("playlist/")[1].split("?")[0];
 
@@ -83,6 +89,7 @@ app.post("/convert", async (req, res) => {
       const track = item.track;
       return `${track.name} ${track.artists[0].name}`;
     });
+
     const youtube = google.youtube({ version: "v3", auth: oauth2Client });
 
     const playlistResponse = await youtube.playlists.insert({
@@ -105,7 +112,6 @@ app.post("/convert", async (req, res) => {
 
       if (searchRes.data.items.length > 0) {
         const videoId = searchRes.data.items[0].id.videoId;
-
         await youtube.playlistItems.insert({
           part: "snippet",
           requestBody: {
@@ -120,11 +126,25 @@ app.post("/convert", async (req, res) => {
 
     res.json({ message: "Playlist created successfully!", youtubePlaylistId });
   } catch (err) {
-  console.error("Error converting playlist:", err.response?.data || err.message || err);
-  res.status(500).json({ error: "Failed to convert playlist" });
-}
-});
+    if (err.response && err.response.data && err.response.data.error) {
+      const apiError = err.response.data.error;
+      const errorReason = apiError.errors[0]?.reason;
 
+      if (errorReason === "quotaExceeded") {
+        console.error("YouTube API Quota Exceeded:", apiError.message);
+        res.status(429).json({
+          error: "YouTube API quota exceeded. Please try again tomorrow.",
+        });
+      } else {
+        console.error("YouTube API Error:", apiError);
+        res.status(500).json({ error: "An error occurred with the YouTube API." });
+      }
+    } else {
+      console.error("General error:", err.message);
+      res.status(500).json({ error: "An unexpected error occurred." });
+    }
+  }
+});
 
 app.get("/ping", (req, res) => {
   res.status(200).json({ message: "Server is running!!" });
