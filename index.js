@@ -10,7 +10,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 
 const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
 const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
@@ -25,14 +25,12 @@ const oauth2Client = new google.auth.OAuth2(
   REDIRECT_URI
 );
 
-let googleTokens = null;
 
 app.get("/google/login", (req, res) => {
   const scopes = ["https://www.googleapis.com/auth/youtube"];
   const url = oauth2Client.generateAuthUrl({
     access_type: "offline",
     scope: scopes,
-    prompt: "consent", 
   });
   res.redirect(url);
 });
@@ -42,15 +40,17 @@ app.get("/google/callback", async (req, res) => {
     const code = req.query.code;
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
-    googleTokens = tokens;
 
-    const frontendUrl = "https://trackshift.vercel.app";
+    global.googleTokens = tokens;
+
+    const frontendUrl = "https://trackshift.vercel.app/"; 
     res.redirect(`${frontendUrl}/?signedIn=true`);
   } catch (err) {
     console.error("Google Auth error:", err.message);
     res.redirect("https://trackshift.vercel.app/?signedIn=false");
   }
 });
+
 
 app.post("/convert", async (req, res) => {
   try {
