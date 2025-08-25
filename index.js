@@ -126,8 +126,8 @@ app.post("/convert", async (req, res) => {
 });
 
 
-app.post('/ping', (req, res) => {
-  res.json({ message: 'Server is up and running!' });
+app.get("/ping", (req, res) => {
+  res.status(200).json({ message: "Server is running!!" });
 });
 
 app.listen(PORT, () => {
