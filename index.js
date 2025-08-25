@@ -125,6 +125,11 @@ app.post("/convert", async (req, res) => {
 }
 });
 
+
+app.post('/ping', (req, res) => {
+  res.json({ message: 'Server is up and running!' });
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
