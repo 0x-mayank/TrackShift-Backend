@@ -43,11 +43,11 @@ app.get("/google/callback", async (req, res) => {
 
     global.googleTokens = tokens;
 
-    const frontendUrl = "http://localhost:5173"; 
+    const frontendUrl = "https://trackshift.vercel.app/"; 
     res.redirect(`${frontendUrl}/?signedIn=true`);
   } catch (err) {
     console.error("Google Auth error:", err.message);
-    res.redirect("http://localhost:5173/?signedIn=false");
+    res.redirect("https://trackshift.vercel.app/?signedIn=false");
   }
 });
 
